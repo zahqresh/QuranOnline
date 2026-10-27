@@ -12,8 +12,9 @@ body{margin:0;background:var(--desk);color:var(--ink);font-family:var(--font-ui)
 .reader{min-height:100vh}
 .reader-options{width:fit-content;max-width:calc(100vw - 24px);margin:0 auto 12px;display:flex;align-items:center;gap:4px;padding:5px;background:var(--sheet);border:1px solid var(--line);border-radius:999px;box-shadow:0 10px 30px -10px rgba(0,0,0,.32)}
 .reader-options label,.verse-audio label{display:grid;gap:4px;flex:1;min-width:145px;font-size:.72rem;letter-spacing:.025em;color:var(--muted)}
-.reader-options label{min-width:125px;padding:0 7px}
+.reader-options label{min-width:125px;padding:0 7px;text-align:center}
 .reader-options select,.verse-audio select{width:100%;min-width:0;padding:8px 26px 8px 10px;border:1px solid transparent;border-radius:999px;background:var(--sheet);color:var(--ink);font:inherit;font-size:.82rem}
+.reader-options select{text-align:center;text-align-last:center}
 .reader-options select:hover{border-color:var(--line)}
 .reader-options select:focus-visible,.verse-audio select:focus-visible{outline:2px solid var(--lapis);outline-offset:1px}
 .reader-options button{border:1px solid var(--line);white-space:nowrap;padding:9px 12px}
@@ -57,6 +58,7 @@ button:disabled{opacity:.4;cursor:default}
 button:focus-visible{outline:2px solid var(--lapis);outline-offset:1px}
 .sep{width:1px;height:20px;background:var(--line);margin:0 4px}
 .seg[aria-pressed="true"]{background:var(--lapis);color:var(--paper)}
+.reader-options .seg[aria-pressed="true"]:hover{background:color-mix(in srgb,var(--lapis) 88%,white);color:var(--paper)}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--sheet);border-top:2px solid var(--gold);border-radius:18px 18px 0 0;padding:16px 18px calc(18px + env(safe-area-inset-bottom,0px));max-width:560px;margin:0 auto;transform:translateY(105%);transition:transform .25s ease;box-shadow:0 -16px 40px -20px rgba(0,0,0,.6)}
 .sheet.open{transform:none}
 .sheet h2{margin:0 0 6px;font:600 .95rem var(--font-ui),sans-serif;color:var(--lapis)}
@@ -64,6 +66,7 @@ button:focus-visible{outline:2px solid var(--lapis);outline-offset:1px}
 .sheet small{display:block;color:var(--muted);margin-bottom:12px;line-height:1.55;font-size:.88rem}
 .verse-audio{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
 .verse-audio .acts{grid-column:1/-1}
+.voice-notice{grid-column:1/-1;margin:0;color:var(--muted);font-size:.78rem;line-height:1.5}
 .acts{display:flex;flex-wrap:wrap;gap:6px}
 .acts button{border:1px solid var(--line)}
 .reader:fullscreen{min-height:100vh;overflow-y:auto;padding:20px 24px 100px;background:var(--desk)}

@@ -47,6 +47,10 @@ export default function Reader({ page, total, ayahs, surahs, translations, trans
   const first = ayahs[0];
   const translationLanguage = translations.find((edition) => edition.id === translation)?.language || "en";
   const isUrdu = translationLanguage === "ur";
+  const translationVoices = voices.filter((voice) =>
+    voice.lang.toLowerCase().startsWith(translationLanguage),
+  );
+  const hasTranslationVoice = translationVoices.length > 0;
 
   const pageUrl = useCallback((p, edition = translation) => {
     const query = edition === "en.sahih" ? "" : `?translation=${encodeURIComponent(edition)}`;
@@ -209,19 +213,40 @@ export default function Reader({ page, total, ayahs, surahs, translations, trans
       setMessage("There is no translation available for this verse.");
       return;
     }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(ayah.tr);
-    const voice = voices.find((item) => item.voiceURI === voiceChoice);
+    const synthesis = window.speechSynthesis;
+    const availableVoices = synthesis.getVoices();
+    if (availableVoices.length && !voices.length) setVoices(availableVoices);
+    const voice = availableVoices.find((item) => item.voiceURI === voiceChoice)
+      || availableVoices.find((item) => item.lang.toLowerCase().startsWith(translationLanguage))
+      || availableVoices.find((item) => item.default)
+      || availableVoices[0];
+    const fallbackNotice = isUrdu && !availableVoices.some((item) =>
+      item.lang.toLowerCase().startsWith(translationLanguage),
+    )
+      ? "No Urdu speech voice is installed. Trying the device's default voice; pronunciation may be limited."
+      : "";
+    synthesis.cancel();
+    synthesis.resume();
+    const utterance = new window.SpeechSynthesisUtterance(ayah.tr);
     if (voice) utterance.voice = voice;
     utterance.lang = voice?.lang || (isUrdu ? "ur-PK" : "en-US");
+    utterance.rate = 0.9;
+    utterance.onstart = () => setSpeaking(true);
     utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => {
+    utterance.onerror = (event) => {
       setSpeaking(false);
-      setMessage("Could not read the translation aloud.");
+      setMessage(event.error === "canceled" || event.error === "interrupted"
+        ? ""
+        : "Could not read the translation aloud. Check that your device has a speech voice installed.");
     };
-    setMessage("");
+    setMessage(fallbackNotice);
     setSpeaking(true);
-    window.speechSynthesis.speak(utterance);
+    try {
+      synthesis.speak(utterance);
+    } catch (error) {
+      setSpeaking(false);
+      setMessage(error.message || "Could not start translation read-aloud.");
+    }
   };
   const stopTranslation = () => {
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
@@ -379,9 +404,8 @@ export default function Reader({ page, total, ayahs, surahs, translations, trans
               <label>
                 <span>Translation voice</span>
                 <select value={voiceChoice} onChange={(event) => setVoiceChoice(event.target.value)}>
-                  <option value="">Browser default</option>
+                  <option value="">Automatic voice</option>
                   {voices
-                    .filter((voice) => voice.lang.toLowerCase().startsWith(isUrdu ? "ur" : "en"))
                     .map((voice) => (
                       <option key={voice.voiceURI} value={voice.voiceURI}>
                         {voice.name} · {voice.lang}
@@ -389,6 +413,12 @@ export default function Reader({ page, total, ayahs, surahs, translations, trans
                     ))}
                 </select>
               </label>
+              {!hasTranslationVoice && (
+                <p className="voice-notice" role="status">
+                  No {isUrdu ? "Urdu" : "matching"} speech voice was found on this device.
+                  {isUrdu ? " The device default voice will be tried, but Urdu pronunciation may be limited." : ""}
+                </p>
+              )}
               <div className="acts">
                 <button onClick={() => audioPlaying === cur.id ? stopRecitation() : playRecitation(cur)}>
                   {audioPlaying === cur.id ? "Stop recitation" : "▶ Play recitation"}

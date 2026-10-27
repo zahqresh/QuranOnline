@@ -18,6 +18,11 @@ export const RECITERS = [
   { id: "ar.shaatree", name: "Abu Bakr Ash-Shaatree", bitrate: 128 },
 ];
 
+export const TRANSLATION_AUDIO = [
+  { id: "en.walk", name: "Ibrahim Walk · English", language: "en" },
+  { id: "ur.khan", name: "Shamshad Ali Khan · Urdu", language: "ur" },
+];
+
 async function fetchEdition(page, edition) {
   const res = await fetch(`${BASE}/page/${page}/${edition}`, { next: { revalidate: REVALIDATE } });
   if (!res.ok) throw new Error(`Quran API error ${res.status} for page ${page} (${edition})`);
