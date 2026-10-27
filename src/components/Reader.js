@@ -25,7 +25,7 @@ function buildBlocks(ayahs) {
   return blocks;
 }
 
-export default function Reader({ page, total, ayahs, surahs, translations, translation, reciters }) {
+export default function Reader({ page, total, ayahs, surahs, translations, translation, reciters, translationAudio }) {
   const router = useRouter();
   const readerRef = useRef(null);
   const audioRef = useRef(null);
@@ -37,20 +37,18 @@ export default function Reader({ page, total, ayahs, surahs, translations, trans
   const [immersive, setImmersive] = useState(false);
   const [surahLoading, setSurahLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [voices, setVoices] = useState([]);
-  const [voiceChoice, setVoiceChoice] = useState("");
   const [reciter, setReciter] = useState("ar.alafasy");
   const [audioPlaying, setAudioPlaying] = useState(null);
-  const [speaking, setSpeaking] = useState(false);
+  const [audioKind, setAudioKind] = useState(null);
+  const [translationAudioEdition, setTranslationAudioEdition] = useState("");
   const [isNavigating, startTransition] = useTransition();
   const blocks = buildBlocks(ayahs);
   const first = ayahs[0];
   const translationLanguage = translations.find((edition) => edition.id === translation)?.language || "en";
   const isUrdu = translationLanguage === "ur";
-  const translationVoices = voices.filter((voice) =>
-    voice.lang.toLowerCase().startsWith(translationLanguage),
-  );
-  const hasTranslationVoice = translationVoices.length > 0;
+  const translationAudioOptions = translationAudio.filter((edition) => edition.language === translationLanguage);
+  const selectedTranslationAudio = translationAudioOptions.find((edition) => edition.id === translationAudioEdition)
+    || translationAudioOptions[0];
 
   const pageUrl = useCallback((p, edition = translation) => {
     const query = edition === "en.sahih" ? "" : `?translation=${encodeURIComponent(edition)}`;
@@ -73,9 +71,8 @@ export default function Reader({ page, total, ayahs, surahs, translations, trans
   const go = useCallback((p) => {
     if (p >= 1 && p <= total) {
       audioRef.current?.pause();
-      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       setAudioPlaying(null);
-      setSpeaking(false);
+      setAudioKind(null);
       setCur(null);
       startTransition(() => router.push(pageUrl(p)));
     }
@@ -94,22 +91,12 @@ export default function Reader({ page, total, ayahs, surahs, translations, trans
   useEffect(() => {
     audioRef.current?.pause();
     setAudioPlaying(null);
+    setAudioKind(null);
     setCur(null);
-    setSpeaking(false);
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   }, [page, translation]);
-
-  useEffect(() => {
-    if (!("speechSynthesis" in window)) return;
-    const updateVoices = () => setVoices(window.speechSynthesis.getVoices());
-    updateVoices();
-    window.speechSynthesis.addEventListener("voiceschanged", updateVoices);
-    return () => window.speechSynthesis.removeEventListener("voiceschanged", updateVoices);
-  }, []);
 
   useEffect(() => () => {
     audioRef.current?.pause();
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
   }, []);
 
   useEffect(() => {
@@ -118,9 +105,8 @@ export default function Reader({ page, total, ayahs, surahs, translations, trans
       if (e.key === "ArrowRight") go(page - 1);
       if (e.key === "Escape") {
         audioRef.current?.pause();
-        if ("speechSynthesis" in window) window.speechSynthesis.cancel();
         setAudioPlaying(null);
-        setSpeaking(false);
+        setAudioKind(null);
         setCur(null);
       }
     };
@@ -178,6 +164,8 @@ export default function Reader({ page, total, ayahs, surahs, translations, trans
   const playRecitation = async (ayah) => {
     setMessage("");
     audioRef.current?.pause();
+    setAudioPlaying(null);
+    setAudioKind(null);
     const selectedReciter = reciters.find((item) => item.id === reciter);
     if (!selectedReciter) {
       setMessage("Please select a supported reciter.");
@@ -187,9 +175,13 @@ export default function Reader({ page, total, ayahs, surahs, translations, trans
       `https://cdn.islamic.network/quran/audio/${selectedReciter.bitrate}/${reciter}/${ayah.id}.mp3`,
     );
     audioRef.current = audio;
-    audio.onended = () => setAudioPlaying(null);
+    audio.onended = () => {
+      setAudioPlaying(null);
+      setAudioKind(null);
+    };
     audio.onerror = () => {
       setAudioPlaying(null);
+      setAudioKind(null);
       setMessage("Could not load this recitation. Please try another reciter.");
     };
     try {
@@ -197,71 +189,59 @@ export default function Reader({ page, total, ayahs, surahs, translations, trans
       setAudioPlaying(ayah.id);
     } catch (error) {
       setAudioPlaying(null);
+      setAudioKind(null);
       setMessage(error.message || "Could not play recitation.");
     }
   };
   const stopRecitation = () => {
     audioRef.current?.pause();
     setAudioPlaying(null);
+    setAudioKind(null);
   };
-  const readTranslation = (ayah) => {
-    if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
-      setMessage("Translation read-aloud is not supported by this browser.");
-      return;
-    }
+  const playTranslationAudio = async (ayah) => {
     if (!ayah.tr) {
       setMessage("There is no translation available for this verse.");
       return;
     }
-    const synthesis = window.speechSynthesis;
-    const availableVoices = synthesis.getVoices();
-    if (availableVoices.length && !voices.length) setVoices(availableVoices);
-    const voice = availableVoices.find((item) => item.voiceURI === voiceChoice)
-      || availableVoices.find((item) => item.lang.toLowerCase().startsWith(translationLanguage))
-      || availableVoices.find((item) => item.default)
-      || availableVoices[0];
-    const fallbackNotice = isUrdu && !availableVoices.some((item) =>
-      item.lang.toLowerCase().startsWith(translationLanguage),
-    )
-      ? "No Urdu speech voice is installed. Trying the device's default voice; pronunciation may be limited."
-      : "";
-    synthesis.cancel();
-    synthesis.resume();
-    const utterance = new window.SpeechSynthesisUtterance(ayah.tr);
-    if (voice) utterance.voice = voice;
-    utterance.lang = voice?.lang || (isUrdu ? "ur-PK" : "en-US");
-    utterance.rate = 0.9;
-    utterance.onstart = () => setSpeaking(true);
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = (event) => {
-      setSpeaking(false);
-      setMessage(event.error === "canceled" || event.error === "interrupted"
-        ? ""
-        : "Could not read the translation aloud. Check that your device has a speech voice installed.");
-    };
-    setMessage(fallbackNotice);
-    setSpeaking(true);
-    try {
-      synthesis.speak(utterance);
-    } catch (error) {
-      setSpeaking(false);
-      setMessage(error.message || "Could not start translation read-aloud.");
+    if (!selectedTranslationAudio) {
+      setMessage(`Recorded translation audio is not available in ${translationLanguage} yet.`);
+      return;
     }
-  };
-  const stopTranslation = () => {
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-    setSpeaking(false);
+    setMessage("");
+    audioRef.current?.pause();
+    setAudioPlaying(null);
+    setAudioKind(null);
+    const audio = new Audio(
+      `https://cdn.islamic.network/quran/audio/${selectedTranslationAudio.bitrate}/${selectedTranslationAudio.id}/${ayah.id}.mp3`,
+    );
+    audioRef.current = audio;
+    audio.onended = () => {
+      setAudioPlaying(null);
+      setAudioKind(null);
+    };
+    audio.onerror = () => {
+      setAudioPlaying(null);
+      setAudioKind(null);
+      setMessage("Could not load the recorded translation audio.");
+    };
+    try {
+      await audio.play();
+      setAudioPlaying(ayah.id);
+      setAudioKind("translation");
+    } catch (error) {
+      setAudioPlaying(null);
+      setAudioKind(null);
+      setMessage(error.message || "Could not play the recorded translation.");
+    }
   };
   const selectAyah = (ayah) => {
     audioRef.current?.pause();
     setAudioPlaying(null);
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-    setSpeaking(false);
+    setAudioKind(null);
     setCur(ayah);
   };
   const closeVerse = () => {
     stopRecitation();
-    stopTranslation();
     setCur(null);
   };
   const copy = async (a) => {
@@ -401,30 +381,37 @@ export default function Reader({ page, total, ayahs, surahs, translations, trans
                   {reciters.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </select>
               </label>
-              <label>
-                <span>Translation voice</span>
-                <select value={voiceChoice} onChange={(event) => setVoiceChoice(event.target.value)}>
-                  <option value="">Automatic voice</option>
-                  {voices
-                    .map((voice) => (
-                      <option key={voice.voiceURI} value={voice.voiceURI}>
-                        {voice.name} · {voice.lang}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              {!hasTranslationVoice && (
+              {selectedTranslationAudio ? (
+                <>
+                  <label>
+                    <span>Recorded translation audio</span>
+                    <select
+                      value={selectedTranslationAudio.id}
+                      onChange={(event) => setTranslationAudioEdition(event.target.value)}
+                    >
+                      {translationAudioOptions.map((item) => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <p className="voice-notice" role="note">
+                    Hosted verse recording. Its wording may differ from the displayed {translations.find((item) => item.id === translation)?.name} text.
+                  </p>
+                </>
+              ) : (
                 <p className="voice-notice" role="status">
-                  No {isUrdu ? "Urdu" : "matching"} speech voice was found on this device.
-                  {isUrdu ? " The device default voice will be tried, but Urdu pronunciation may be limited." : ""}
+                  No hosted verse-by-verse translation recording is available for this language.
                 </p>
               )}
               <div className="acts">
-                <button onClick={() => audioPlaying === cur.id ? stopRecitation() : playRecitation(cur)}>
-                  {audioPlaying === cur.id ? "Stop recitation" : "▶ Play recitation"}
+                <button onClick={() => audioPlaying === cur.id && audioKind === "recitation" ? stopRecitation() : playRecitation(cur)}>
+                  {audioPlaying === cur.id && audioKind === "recitation" ? "Stop recitation" : "▶ Play recitation"}
                 </button>
-                <button onClick={() => speaking ? stopTranslation() : readTranslation(cur)}>
-                  {speaking ? "Stop reading" : "🔊 Read translation"}
+                <button
+                  onClick={() => audioPlaying === cur.id && audioKind === "translation" ? stopRecitation() : playTranslationAudio(cur)}
+                  disabled={!selectedTranslationAudio}
+                >
+                  {audioPlaying === cur.id && audioKind === "translation" ? "Stop translation audio" : "▶ Play recorded translation"}
                 </button>
               </div>
             </div>

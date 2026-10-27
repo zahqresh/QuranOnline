@@ -19,8 +19,8 @@ export const RECITERS = [
 ];
 
 export const TRANSLATION_AUDIO = [
-  { id: "en.walk", name: "Ibrahim Walk · English", language: "en" },
-  { id: "ur.khan", name: "Shamshad Ali Khan · Urdu", language: "ur" },
+  { id: "en.walk", name: "Ibrahim Walk · English", language: "en", bitrate: 192 },
+  { id: "ur.khan", name: "Shamshad Ali Khan · Urdu", language: "ur", bitrate: 64 },
 ];
 
 async function fetchEdition(page, edition) {
